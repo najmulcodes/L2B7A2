@@ -25,11 +25,11 @@ export const createIssue = asyncHandler(async (req: Request, res: Response): Pro
     return;
   }
 
-  // req.user is guaranteed to exist by the 'authenticate' middleware on this route
   if (!req.user) {
     sendError(res, StatusCodes.UNAUTHORIZED, 'Authentication error.');
     return;
   }
+
   const reporter_id = req.user.id;
   const issue = await issuesService.createIssue(title, description, type, reporter_id);
   sendSuccess(res, StatusCodes.CREATED, 'Issue created successfully', issue);
@@ -86,11 +86,11 @@ export const updateIssue = asyncHandler(async (req: Request, res: Response): Pro
     return;
   }
 
-  // req.user is guaranteed to exist by the 'authenticate' middleware
   if (!req.user) {
     sendError(res, StatusCodes.UNAUTHORIZED, 'Authentication error.');
     return;
   }
+
   const { role, id: userId } = req.user;
   const { title, description, type, status } = req.body;
 
@@ -138,6 +138,13 @@ export const deleteIssue = asyncHandler(async (req: Request, res: Response): Pro
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) {
     sendError(res, StatusCodes.BAD_REQUEST, 'Invalid issue ID.');
+    return;
+  }
+
+  // Check existence before attempting delete — otherwise a missing ID returns 200
+  const issue = await issuesService.getRawIssueById(id);
+  if (!issue) {
+    sendError(res, StatusCodes.NOT_FOUND, 'Issue not found.');
     return;
   }
 
