@@ -4,6 +4,7 @@ import * as issuesService from './issues.service';
 import { sendSuccess, sendError } from '../../utils/response.util';
 import asyncHandler from '../../utils/asyncHandler';
 import { AuthRequest } from '../../types';
+import { Request, Response } from 'express'; // add Request
 
 export const createIssue = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const { title, description, type } = req.body;
@@ -31,7 +32,7 @@ export const createIssue = asyncHandler(async (req: AuthRequest, res: Response):
   sendSuccess(res, StatusCodes.CREATED, 'Issue created successfully', issue);
 });
 
-export const getAllIssues = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+export const getSingleIssue = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const sort = (req.query.sort as string) || 'newest';
   const type = req.query.type as string | undefined;
   const status = req.query.status as string | undefined;
@@ -73,69 +74,25 @@ export const getSingleIssue = asyncHandler(async (req: AuthRequest, res: Respons
   sendSuccess(res, StatusCodes.OK, 'Issue fetched successfully', issue);
 });
 
-export const updateIssue = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
-  if (isNaN(id)) {
-    sendError(res, StatusCodes.BAD_REQUEST, 'Invalid issue ID.');
-    return;
-  }
+export const updateIssue = async (
+  id: number,
+  fields: { title?: string; description?: string; type?: string; status?: string }
+): Promise<Issue> => {
+  const updates: string[] = [];
+  const values: unknown[] = [];
+  let paramIndex = 1;
 
-  const issue = await issuesService.getRawIssueById(id);
-  if (!issue) {
-    sendError(res, StatusCodes.NOT_FOUND, 'Issue not found.');
-    return;
-  }
+  if (fields.title !== undefined)       { updates.push(`title = $${paramIndex++}`);       values.push(fields.title); }
+  if (fields.description !== undefined) { updates.push(`description = $${paramIndex++}`); values.push(fields.description); }
+  if (fields.type !== undefined)        { updates.push(`type = $${paramIndex++}`);        values.push(fields.type); }
+  if (fields.status !== undefined)      { updates.push(`status = $${paramIndex++}`);      values.push(fields.status); }
 
-  const { role, id: userId } = req.user!;
+  updates.push(`updated_at = NOW()`);
+  values.push(id);
 
-  // Contributor: can only edit own issues that are still open
-  if (role === 'contributor') {
-    if (issue.reporter_id !== userId) {
-      sendError(res, StatusCodes.FORBIDDEN, 'You can only update your own issues.');
-      return;
-    }
-    if (issue.status !== 'open') {
-      sendError(res, StatusCodes.CONFLICT, 'You can only update issues that are open.');
-      return;
-    }
-  }
-
-  const { title, description, type } = req.body;
-
-  if (!title && !description && !type) {
-    sendError(res, StatusCodes.BAD_REQUEST, 'Provide at least one field to update: title, description, or type.');
-    return;
-  }
-  if (title && title.length > 150) {
-    sendError(res, StatusCodes.BAD_REQUEST, 'title must not exceed 150 characters.');
-    return;
-  }
-  if (description && description.length < 20) {
-    sendError(res, StatusCodes.BAD_REQUEST, 'description must be at least 20 characters.');
-    return;
-  }
-  if (type && !['bug', 'feature_request'].includes(type)) {
-    sendError(res, StatusCodes.BAD_REQUEST, 'type must be bug or feature_request.');
-    return;
-  }
-
-  const updated = await issuesService.updateIssue(id, { title, description, type });
-  sendSuccess(res, StatusCodes.OK, 'Issue updated successfully', updated);
-});
-
-export const deleteIssue = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
-  if (isNaN(id)) {
-    sendError(res, StatusCodes.BAD_REQUEST, 'Invalid issue ID.');
-    return;
-  }
-
-  const issue = await issuesService.getRawIssueById(id);
-  if (!issue) {
-    sendError(res, StatusCodes.NOT_FOUND, 'Issue not found.');
-    return;
-  }
-
-  await issuesService.deleteIssueById(id);
-  sendSuccess(res, StatusCodes.OK, 'Issue deleted successfully');
-});
+  const result = await pool.query<Issue>(
+    `UPDATE issues SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+    values
+  );
+  return result.rows[0];
+};
