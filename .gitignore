@@ -1,7 +1,14 @@
-.env
-.env.example
+# Dependencies
 node_modules
+
+# Build output
 dist
-build
-coverage
+
+# Environment variables
+.env
+
+# Logs
 *.log
+
+# macOS specific
+.DS_Store
