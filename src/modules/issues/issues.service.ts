@@ -21,14 +21,14 @@ export const fetchReportersByIds = async (
 ): Promise<Map<number, ReporterPublic>> => {
   if (ids.length === 0) return new Map();
 
-  const placeholders = ids.map((_, i) => `$${i + 1}`).join(', ');
+  const placeholders = ids.map((_: number, i: number) => `$${i + 1}`).join(', ');
   const result = await pool.query<ReporterPublic & { id: number }>(
     `SELECT id, name, role FROM users WHERE id IN (${placeholders})`,
     ids
   );
 
   const map = new Map<number, ReporterPublic>();
-  result.rows.forEach((u) => map.set(u.id, u));
+  result.rows.forEach((u: ReporterPublic & { id: number }) => map.set(u.id, u));
   return map;
 };
 
@@ -38,7 +38,7 @@ export const getAllIssues = async (
   status?: string
 ): Promise<IssueWithReporter[]> => {
   const conditions: string[] = [];
-  const values: unknown[] = [];
+  const values: (string | number)[] = [];
   let paramIndex = 1;
 
   if (type) {
@@ -62,27 +62,16 @@ export const getAllIssues = async (
   const issues = result.rows;
   if (issues.length === 0) return [];
 
-  const reporterIds = [...new Set(issues.map((i) => i.reporter_id))];
+  const reporterIds: number[] = [...new Set(issues.map((i: Issue) => i.reporter_id))];
   const reporterMap = await fetchReportersByIds(reporterIds);
 
-  return issues.map(({ reporter_id, ...rest }) => ({
-    ...rest,
-    reporter: reporterMap.get(reporter_id) || { id: reporter_id, name: 'Unknown', role: 'contributor' },
-  }));
-};
-
-export const getIssueById = async (id: number): Promise<IssueWithReporter | null> => {
-  const result = await pool.query<Issue>('SELECT * FROM issues WHERE id = $1', [id]);
-  const issue = result.rows[0];
-  if (!issue) return null;
-
-  const reporterMap = await fetchReportersByIds([issue.reporter_id]);
-  const { reporter_id, ...rest } = issue;
-
-  return {
-    ...rest,
-    reporter: reporterMap.get(reporter_id) || { id: reporter_id, name: 'Unknown', role: 'contributor' },
-  };
+  return issues.map((issue: Issue) => {
+    const { reporter_id, ...rest } = issue;
+    return {
+      ...rest,
+      reporter: reporterMap.get(reporter_id) || { id: reporter_id, name: 'Unknown', role: 'contributor' as const },
+    };
+  });
 };
 
 export const getRawIssueById = async (id: number): Promise<Issue | null> => {
