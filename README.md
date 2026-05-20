@@ -146,7 +146,7 @@ Access to certain endpoints is restricted based on user roles:
 ```json
 {
   "success": true,
-  "message": "User created successfully",
+  "message": "User registered successfully",
   "data": {
     "id": 1,
     "name": "Jane Doe",
