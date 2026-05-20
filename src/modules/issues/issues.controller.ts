@@ -3,9 +3,9 @@ import { StatusCodes } from 'http-status-codes';
 import * as issuesService from './issues.service';
 import { sendSuccess, sendError } from '../../utils/response.util';
 import asyncHandler from '../../utils/asyncHandler';
-import { AuthRequest, TIssueStatus, TIssueType } from '../../types';
+import { TIssueStatus, TIssueType } from '../../types';
 
-export const createIssue = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+export const createIssue = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { title, description, type } = req.body;
 
   if (!title || !description || !type) {
@@ -25,7 +25,12 @@ export const createIssue = asyncHandler(async (req: AuthRequest, res: Response):
     return;
   }
 
-  const reporter_id = req.user!.id;
+  // req.user is guaranteed to exist by the 'authenticate' middleware on this route
+  if (!req.user) {
+    sendError(res, StatusCodes.UNAUTHORIZED, 'Authentication error.');
+    return;
+  }
+  const reporter_id = req.user.id;
   const issue = await issuesService.createIssue(title, description, type, reporter_id);
   sendSuccess(res, StatusCodes.CREATED, 'Issue created successfully', issue);
 });
@@ -68,7 +73,7 @@ export const getSingleIssue = asyncHandler(async (req: Request, res: Response): 
   sendSuccess(res, StatusCodes.OK, 'Issue fetched successfully', issue);
 });
 
-export const updateIssue = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+export const updateIssue = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) {
     sendError(res, StatusCodes.BAD_REQUEST, 'Invalid issue ID.');
@@ -81,7 +86,12 @@ export const updateIssue = asyncHandler(async (req: AuthRequest, res: Response):
     return;
   }
 
-  const { role, id: userId } = req.user!;
+  // req.user is guaranteed to exist by the 'authenticate' middleware
+  if (!req.user) {
+    sendError(res, StatusCodes.UNAUTHORIZED, 'Authentication error.');
+    return;
+  }
+  const { role, id: userId } = req.user;
   const { title, description, type, status } = req.body;
 
   if (role === 'contributor') {
@@ -124,7 +134,7 @@ export const updateIssue = asyncHandler(async (req: AuthRequest, res: Response):
   sendSuccess(res, StatusCodes.OK, 'Issue updated successfully', updated);
 });
 
-export const deleteIssue = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+export const deleteIssue = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) {
     sendError(res, StatusCodes.BAD_REQUEST, 'Invalid issue ID.');
