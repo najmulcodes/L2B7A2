@@ -4,6 +4,7 @@ import { StatusCodes } from 'http-status-codes';
 import authRoutes from './modules/auth/auth.routes';
 import issuesRoutes from './modules/issues/issues.routes';
 import errorMiddleware from './middleware/error.middleware';
+import { sendError } from './utils/response.util';
 
 const app = express();
 
@@ -21,12 +22,10 @@ app.get('/health', (_req: Request, res: Response) => {
 
 // 404 handler
 app.use((_req: Request, res: Response) => {
-  res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Route not found.' });
+  sendError(res, StatusCodes.NOT_FOUND, 'Route not found.');
 });
 
 // Global error handler
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  errorMiddleware(err, req, res, next);
-});
+app.use(errorMiddleware);
 
 export default app;

@@ -3,7 +3,7 @@ import { StatusCodes } from 'http-status-codes';
 import * as issuesService from './issues.service';
 import { sendSuccess, sendError } from '../../utils/response.util';
 import asyncHandler from '../../utils/asyncHandler';
-import { AuthRequest } from '../../types';
+import { AuthRequest, TIssueStatus, TIssueType } from '../../types';
 
 export const createIssue = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const { title, description, type } = req.body;
@@ -32,8 +32,8 @@ export const createIssue = asyncHandler(async (req: AuthRequest, res: Response):
 
 export const getAllIssues = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const sort = (req.query.sort as string) || 'newest';
-  const type = req.query.type as string | undefined;
-  const status = req.query.status as string | undefined;
+  const type = req.query.type as TIssueType | undefined;
+  const status = req.query.status as TIssueStatus | undefined;
 
   if (!['newest', 'oldest'].includes(sort)) {
     sendError(res, StatusCodes.BAD_REQUEST, 'sort must be newest or oldest.');
@@ -49,11 +49,11 @@ export const getAllIssues = asyncHandler(async (req: Request, res: Response): Pr
   }
 
   const issues = await issuesService.getAllIssues(sort, type, status);
-  res.status(StatusCodes.OK).json({ success: true, data: issues });
+  sendSuccess(res, StatusCodes.OK, 'Issues fetched successfully', issues);
 });
 
 export const getSingleIssue = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id, 10);
   if (isNaN(id)) {
     sendError(res, StatusCodes.BAD_REQUEST, 'Invalid issue ID.');
     return;
@@ -65,11 +65,11 @@ export const getSingleIssue = asyncHandler(async (req: Request, res: Response): 
     return;
   }
 
-  res.status(StatusCodes.OK).json({ success: true, data: issue });
+  sendSuccess(res, StatusCodes.OK, 'Issue fetched successfully', issue);
 });
 
 export const updateIssue = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id, 10);
   if (isNaN(id)) {
     sendError(res, StatusCodes.BAD_REQUEST, 'Invalid issue ID.');
     return;
@@ -82,6 +82,7 @@ export const updateIssue = asyncHandler(async (req: AuthRequest, res: Response):
   }
 
   const { role, id: userId } = req.user!;
+  const { title, description, type, status } = req.body;
 
   if (role === 'contributor') {
     if (issue.reporter_id !== userId) {
@@ -92,18 +93,14 @@ export const updateIssue = asyncHandler(async (req: AuthRequest, res: Response):
       sendError(res, StatusCodes.CONFLICT, 'You can only update issues that are open.');
       return;
     }
+    if (status !== undefined) {
+      sendError(res, StatusCodes.FORBIDDEN, 'Contributors cannot change issue status.');
+      return;
+    }
   }
 
-  const { title, description, type, status } = req.body;
-
-  // Contributors cannot change status
-  if (role === 'contributor' && status !== undefined) {
-    sendError(res, StatusCodes.FORBIDDEN, 'Contributors cannot change issue status.');
-    return;
-  }
-
-  if (!title && !description && !type && !status) {
-    sendError(res, StatusCodes.BAD_REQUEST, 'Provide at least one field to update: title, description, type, or status.');
+  if (!title && !description && !type && status === undefined) {
+    sendError(res, StatusCodes.BAD_REQUEST, 'Provide at least one field to update.');
     return;
   }
   if (title && title.length > 150) {
@@ -128,15 +125,9 @@ export const updateIssue = asyncHandler(async (req: AuthRequest, res: Response):
 });
 
 export const deleteIssue = asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id, 10);
   if (isNaN(id)) {
     sendError(res, StatusCodes.BAD_REQUEST, 'Invalid issue ID.');
-    return;
-  }
-
-  const issue = await issuesService.getRawIssueById(id);
-  if (!issue) {
-    sendError(res, StatusCodes.NOT_FOUND, 'Issue not found.');
     return;
   }
 

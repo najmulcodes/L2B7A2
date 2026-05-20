@@ -1,7 +1,7 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import pool from '../../config/db';
-import { User, UserPublic } from '../../types';
+import { User, UserPublic, TUserRole } from '../../types';
 
 const SALT_ROUNDS = 10;
 
@@ -14,7 +14,7 @@ export const registerUser = async (
   name: string,
   email: string,
   password: string,
-  role: 'contributor' | 'maintainer'
+  role: TUserRole
 ): Promise<UserPublic> => {
   const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
   const result = await pool.query<UserPublic>(
@@ -33,7 +33,7 @@ export const validatePassword = async (
   return bcrypt.compare(plainPassword, hashedPassword);
 };
 
-export const generateToken = (id: number, name: string, role: string): string => {
+export const generateToken = (id: number, name: string, role: TUserRole): string => {
   return jwt.sign(
     { id, name, role },
     process.env.JWT_SECRET as string,

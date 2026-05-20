@@ -3,6 +3,7 @@ import { StatusCodes } from 'http-status-codes';
 import * as authService from './auth.service';
 import { sendSuccess, sendError } from '../../utils/response.util';
 import asyncHandler from '../../utils/asyncHandler';
+import { TUserRole } from '../../types';
 
 export const signup = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { name, email, password, role } = req.body;
@@ -12,9 +13,8 @@ export const signup = asyncHandler(async (req: Request, res: Response): Promise<
     return;
   }
 
-  const validRoles = ['contributor', 'maintainer'];
-  const assignedRole = role || 'contributor';
-  if (!validRoles.includes(assignedRole)) {
+  const assignedRole: TUserRole = role || 'contributor';
+  if (!['contributor', 'maintainer'].includes(assignedRole)) {
     sendError(res, StatusCodes.BAD_REQUEST, 'role must be contributor or maintainer.');
     return;
   }
@@ -25,7 +25,7 @@ export const signup = asyncHandler(async (req: Request, res: Response): Promise<
     return;
   }
 
-  const user = await authService.registerUser(name, email, password, assignedRole as 'contributor' | 'maintainer');
+  const user = await authService.registerUser(name, email, password, assignedRole);
   sendSuccess(res, StatusCodes.CREATED, 'User registered successfully', user);
 });
 
@@ -38,13 +38,7 @@ export const login = asyncHandler(async (req: Request, res: Response): Promise<v
   }
 
   const user = await authService.findUserByEmail(email);
-  if (!user) {
-    sendError(res, StatusCodes.UNAUTHORIZED, 'Invalid credentials.');
-    return;
-  }
-
-  const isValid = await authService.validatePassword(password, user.password);
-  if (!isValid) {
+  if (!user || !(await authService.validatePassword(password, user.password))) {
     sendError(res, StatusCodes.UNAUTHORIZED, 'Invalid credentials.');
     return;
   }

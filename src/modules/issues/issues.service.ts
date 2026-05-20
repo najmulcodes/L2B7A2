@@ -1,10 +1,10 @@
 import pool from '../../config/db';
-import { Issue, IssueWithReporter, ReporterPublic } from '../../types';
+import { Issue, IssueWithReporter, ReporterPublic, TIssueType, TIssueStatus } from '../../types';
 
 export const createIssue = async (
   title: string,
   description: string,
-  type: 'bug' | 'feature_request',
+  type: TIssueType,
   reporter_id: number
 ): Promise<Issue> => {
   const result = await pool.query<Issue>(
@@ -26,17 +26,17 @@ export const fetchReportersByIds = async (
     ids
   );
   const map = new Map<number, ReporterPublic>();
-  result.rows.forEach((u) => map.set(u.id, u));
+  result.rows.forEach((u) => map.set(u.id, { id: u.id, name: u.name, role: u.role }));
   return map;
 };
 
 export const getAllIssues = async (
   sort: string,
-  type?: string,
-  status?: string
+  type?: TIssueType,
+  status?: TIssueStatus
 ): Promise<IssueWithReporter[]> => {
   const conditions: string[] = [];
-  const values: unknown[] = [];
+  const values: (string | number)[] = [];
   let paramIndex = 1;
 
   if (type) {
@@ -64,7 +64,7 @@ export const getAllIssues = async (
 
   return issues.map(({ reporter_id, ...rest }) => ({
     ...rest,
-    reporter: reporterMap.get(reporter_id) || { id: reporter_id, name: 'Unknown', role: 'contributor' as const },
+    reporter: reporterMap.get(reporter_id) || { id: reporter_id, name: 'Unknown', role: 'contributor' },
   }));
 };
 
@@ -78,7 +78,7 @@ export const getIssueById = async (id: number): Promise<IssueWithReporter | null
 
   return {
     ...rest,
-    reporter: reporterMap.get(reporter_id) || { id: reporter_id, name: 'Unknown', role: 'contributor' as const },
+    reporter: reporterMap.get(reporter_id) || { id: reporter_id, name: 'Unknown', role: 'contributor' },
   };
 };
 
@@ -89,27 +89,24 @@ export const getRawIssueById = async (id: number): Promise<Issue | null> => {
 
 export const updateIssue = async (
   id: number,
-  fields: { title?: string; description?: string; type?: string; status?: string }
+  fields: { title?: string; description?: string; type?: TIssueType; status?: TIssueStatus }
 ): Promise<Issue> => {
   const updates: string[] = [];
   const values: unknown[] = [];
   let paramIndex = 1;
 
-  if (fields.title !== undefined) {
-    updates.push(`title = $${paramIndex++}`);
-    values.push(fields.title);
-  }
-  if (fields.description !== undefined) {
-    updates.push(`description = $${paramIndex++}`);
-    values.push(fields.description);
-  }
-  if (fields.type !== undefined) {
-    updates.push(`type = $${paramIndex++}`);
-    values.push(fields.type);
-  }
-  if (fields.status !== undefined) {
-    updates.push(`status = $${paramIndex++}`);
-    values.push(fields.status);
+  const fieldMap = {
+    title: fields.title,
+    description: fields.description,
+    type: fields.type,
+    status: fields.status,
+  };
+
+  for (const [key, value] of Object.entries(fieldMap)) {
+    if (value !== undefined) {
+      updates.push(`${key} = $${paramIndex++}`);
+      values.push(value);
+    }
   }
 
   updates.push(`updated_at = NOW()`);
