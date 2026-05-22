@@ -3,11 +3,7 @@ node_modules
 
 # Build output
 dist/
+
 # Environment variables
 .env
-
-# Logs
-*.log
-
-# macOS specific
-.DS_Store
+.vercel
